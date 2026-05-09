@@ -10,19 +10,17 @@ from flask_limiter.util import get_remote_address
 import sqlite3
 from functools import wraps
 
-# ---------- Настройки ----------
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-MAX_CONTENT_LENGTH = 1 * 1024 * 1024 * 1024  # 1 ГБ
-SECRET_KEY = secrets.token_hex(32)           # !!! Для продакшена замените на постоянную строку и храните в тайне
-TOKEN_BYTES = 32                             # длина случайного токена
+MAX_CONTENT_LENGTH = 1 * 1024 * 1024 * 1024  
+SECRET_KEY = secrets.token_hex(32)           
+TOKEN_BYTES = 32                             
 
 app = Flask(__name__)
-# Теперь берем ключ из настроек Render (Environment Variables)
+
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-key-for-local-dev')
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
-# Rate limiting: защита от брутфорса токенов и чрезмерной загрузки
 
 limiter = Limiter(
     get_remote_address,
@@ -31,7 +29,6 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
-# ---------- База данных ----------
 def init_db():
     conn = sqlite3.connect('files.db')
     c = conn.cursor()
@@ -47,7 +44,7 @@ def init_db():
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
-    # Включаем WAL режим для лучшей конкурентности
+    
     c.execute("PRAGMA journal_mode=WAL")
     conn.commit()
     conn.close()
@@ -59,7 +56,7 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-# ---------- Вспомогательные функции ----------
+
 def generate_token():
     """Криптостойкий случайный токен для URL"""
     return secrets.token_urlsafe(TOKEN_BYTES)
@@ -88,12 +85,11 @@ def cleanup_expired():
     conn.commit()
     conn.close()
 
-# Периодическая очистка: запускаем перед каждым запросом (для простоты, в реальном проекте – фоновая задача)
 @app.before_request
 def before_request():
     cleanup_expired()
 
-# ---------- Защита от CSRF ----------
+
 def generate_csrf_token():
     if '_csrf_token' not in session:
         session['_csrf_token'] = secrets.token_hex(16)
@@ -111,9 +107,9 @@ def require_csrf(f):
         return f(*args, **kwargs)
     return decorated
 
-# ---------- Маршруты ----------
+
 @app.route('/', methods=['GET', 'POST'])
-@limiter.limit("10 per minute")  # защита от слишком частой загрузки
+@limiter.limit("10 per minute")  
 @require_csrf
 def index():
     if request.method == 'POST':
@@ -121,7 +117,7 @@ def index():
         if not file or file.filename == '':
             return render_template('index.html', error='Файл не выбран')
 
-        # Параметры
+        
         password = request.form.get('password', '').strip()
         max_downloads = request.form.get('max_downloads', '1')
         ttl_hours = request.form.get('ttl_hours', '24')
@@ -134,29 +130,29 @@ def index():
 
         if max_downloads < 1 or max_downloads > 100:
             max_downloads = 1
-        if ttl_hours < 1 or ttl_hours > 168:  # максимум неделя
+        if ttl_hours < 1 or ttl_hours > 168:  
             ttl_hours = 24
 
-        # Сохраняем файл на диск под случайным именем
+        
         file_id = str(uuid.uuid4())
-        original_name = file.filename  # имя без пути, безопасно
+        original_name = file.filename  
         storage_name = file_id
         file_path = os.path.join(UPLOAD_FOLDER, storage_name)
         file.save(file_path)
         file_size = os.path.getsize(file_path)
 
-        # Токен и хэш
+        
         token = generate_token()
         token_hash = hash_token(token)
 
-        # Хэш пароля, если задан
+        
         password_hash = None
         if password:
             password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         expires_at = datetime.datetime.utcnow() + datetime.timedelta(hours=ttl_hours)
 
-        # Сохраняем метаданные в БД
+        
         conn = get_db()
         conn.execute('''INSERT INTO files 
                         (id, original_name, storage_path, size, token_hash, password_hash, max_downloads, expires_at)
@@ -165,17 +161,17 @@ def index():
         conn.commit()
         conn.close()
 
-        # Формируем ссылку для получателя
+        
         download_link = url_for('download_page', token=token, _external=True)
         if password:
-            download_link += '?pw=1'  # подсказка, что нужен пароль
+            download_link += '?pw=1'  
 
         return render_template('index.html', success=True, link=download_link, password_set=bool(password))
 
     return render_template('index.html')
 
 @app.route('/d/<token>', methods=['GET', 'POST'])
-@limiter.limit("30 per minute")  # ограничение попыток скачивания
+@limiter.limit("30 per minute") 
 def download_page(token):
     token_hash = hash_token(token)
     conn = get_db()
@@ -190,14 +186,14 @@ def download_page(token):
     password_required = file_record['password_hash'] is not None
 
     if request.method == 'GET':
-        # Показываем страницу с информацией о файле и, возможно, формой для пароля
+        
         return render_template('download.html', 
                                file_name=file_record['original_name'],
                                file_size=file_record['size'],
                                password_required=password_required,
                                token=token)
     elif request.method == 'POST':
-        # Проверка пароля (если требуется) и отдача файла
+        
         if password_required:
             password = request.form.get('password', '')
             if not bcrypt.checkpw(password.encode('utf-8'), file_record['password_hash'].encode('utf-8')):
@@ -208,34 +204,34 @@ def download_page(token):
                                        token=token,
                                        error='Неверный пароль')
         
-        # Проверяем лимит скачиваний
+        
         if file_record['download_count'] >= file_record['max_downloads']:
             conn.close()
             abort(410, description="Лимит скачиваний исчерпан")
 
-        # Атомарно увеличиваем счётчик
+        
         conn.execute('UPDATE files SET download_count = download_count + 1 WHERE id = ?', (file_record['id'],))
         conn.commit()
         conn.close()
 
-        # Отдаём файл
+        
         file_path = file_record['storage_path']
         if not os.path.exists(file_path):
             abort(404, description="Файл был удалён")
 
-        # Безопасная отправка: оригинальное имя экранируется, браузер получит его в заголовке
+        
         return send_file(
             file_path,
             as_attachment=True,
             download_name=file_record['original_name'],
-            mimetype='application/octet-stream'  # принудительно скачивание, без исполнения
+            mimetype='application/octet-stream'  
         )
 
-    # На всякий случай
+    
     conn.close()
     abort(405)
 
-# ---------- Заголовки безопасности ----------
+
 @app.after_request
 def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -243,7 +239,7 @@ def set_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'no-referrer'
     response.headers['Permissions-Policy'] = 'geolocation=(), microphone=()'
-    # Content-Security-Policy: разрешаем только свой источник и Bootstrap CDN
+    
     response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;"
     return response
 
