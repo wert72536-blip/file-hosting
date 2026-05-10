@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Файлообменник</title>
+    <title>File Sharing</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -12,20 +12,20 @@
             <div class="col-md-8 col-lg-6">
                 <div class="card shadow">
                     <div class="card-body p-4">
-                        <h1 class="text-center mb-4">📤 Загрузить файл</h1>
+                        <h1 class="text-center mb-4">📤 Upload File</h1>
 
                         {% if error %}
                         <div class="alert alert-danger">{{ error }}</div>
                         {% endif %}
                         {% if success %}
                         <div class="alert alert-success">
-                            <p>Файл успешно загружен!</p>
-                            <p><strong>Ссылка для скачивания:</strong><br>
+                            <p>File uploaded successfully!</p>
+                            <p><strong>Download link:</strong><br>
                             <a href="{{ link }}" target="_blank">{{ link }}</a></p>
                             {% if password_set %}
-                            <p class="mb-0 text-warning">Для скачивания потребуется пароль.</p>
+                            <p class="mb-0 text-warning">A password is required to download.</p>
                             {% endif %}
-                            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="navigator.clipboard.writeText('{{ link }}')">📋 Копировать ссылку</button>
+                            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="navigator.clipboard.writeText('{{ link }}')">📋 Copy link</button>
                         </div>
                         {% endif %}
 
@@ -33,28 +33,28 @@
                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
 
                             <div class="mb-3">
-                                <label for="fileInput" class="form-label">Выберите файл</label>
+                                <label for="fileInput" class="form-label">Choose a file</label>
                                 <input class="form-control" type="file" id="fileInput" name="file" required>
-                                <div class="form-text">Максимальный размер: 1 ГБ. Любые типы разрешены.</div>
+                                <div class="form-text">Maximum size: 1 GB. All file types are allowed.</div>
                             </div>
 
                             <div class="mb-3">
-                                <label for="password" class="form-label">Пароль для скачивания (необязательно)</label>
-                                <input type="text" class="form-control" id="password" name="password" placeholder="Оставьте пустым, если не нужен">
+                                <label for="password" class="form-label">Download password (optional)</label>
+                                <input type="text" class="form-control" id="password" name="password" placeholder="Leave empty if not needed">
                             </div>
 
                             <div class="row mb-3">
                                 <div class="col">
-                                    <label for="max_downloads" class="form-label">Макс. число скачиваний</label>
+                                    <label for="max_downloads" class="form-label">Max downloads</label>
                                     <input type="number" class="form-control" id="max_downloads" name="max_downloads" value="1" min="1" max="100">
                                 </div>
                                 <div class="col">
-                                    <label for="ttl_hours" class="form-label">Срок жизни (часов)</label>
+                                    <label for="ttl_hours" class="form-label">Lifetime (hours)</label>
                                     <input type="number" class="form-control" id="ttl_hours" name="ttl_hours" value="24" min="1" max="168">
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary w-100">Загрузить</button>
+                            <button type="submit" class="btn btn-primary w-100">Upload</button>
                         </form>
                     </div>
                 </div>
